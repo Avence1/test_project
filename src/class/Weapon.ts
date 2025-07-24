@@ -8,14 +8,16 @@ import {
   ATTACK_RECOVERY_DELAY,
 } from "../const";
 
+type WeaponState = "idle" | "swinging" | "throwing";
+
 interface WeaponOption {
   owner: Player;
   width?: number;
   height?: number;
   attackDuration?: {
-    pre?: number;
-    active?: number;
-    recovery?: number;
+    pre: number;
+    active: number;
+    recovery: number;
   };
 }
 
@@ -25,152 +27,185 @@ class Weapon {
   private owner: Player;
   private x: number;
   private y: number;
-  private width = SWORD_WIDTH;
-  private height = SWORD_HEIGHT;
-  private isAttacking = false;
-  private actionStatus: Record<actionKeyType, boolean> = {
-    pre: false,
-    active: false,
-    recovery: false,
-  };
+  private z: number;
+  private vz: number;
+  private width: number;
+  private height: number;
+
+  private currentState: WeaponState = "idle";
+  private actionTimer: number = 0;
   private attackDuration: Record<actionKeyType, number> = {
     pre: ATTACK_PRE_DELAY,
     active: ATTACK_DURATION,
     recovery: ATTACK_RECOVERY_DELAY,
   };
-  private attackTimer: Record<actionKeyType, number> = {
-    pre: 0,
-    active: 0,
-    recovery: 0,
-  };
+
+  private throwStartX: number = 0;
+  private throwStartY: number = 0;
+  private throwDirection = { x: 1, y: 0 };
 
   constructor(params: WeaponOption) {
     this.width = params.width ?? SWORD_WIDTH;
     this.height = params.height ?? SWORD_HEIGHT;
-    this.attackDuration = {
-      pre: params.attackDuration?.pre ?? ATTACK_PRE_DELAY,
-      active: params.attackDuration?.active ?? ATTACK_DURATION,
-      recovery: params.attackDuration?.recovery ?? ATTACK_RECOVERY_DELAY,
-    };
+
     this.owner = params.owner;
     this.x = 0;
     this.y = 0;
+    this.z = this.owner.z;
+    this.vz = this.owner.vz;
+    if (params.attackDuration) {
+      this.attackDuration = { ...params.attackDuration };
+    }
   }
 
-  private consumeAction(leftTime: number) {
-    if (this.attackTimer.pre > 0) {
-      if (leftTime > this.attackTimer.pre) {
-        this.attackTimer.pre = 0;
-        this.consumeAction(leftTime - this.attackTimer.pre);
-      } else {
-        this.attackTimer.pre = this.attackTimer.pre - leftTime;
-      }
-      return;
-    }
+  private updateIdleState() {
+    const dir = this.normalized(
+      this.owner.lastMoveDirection.x,
+      this.owner.lastMoveDirection.y
+    );
+    this.x = this.owner.x + this.owner.width / 2 + dir.x * 10;
+    this.y = this.owner.y + this.owner.height / 2 + dir.y * 10;
+    this.z = this.owner.z;
+  }
 
-    if (this.attackTimer.active > 0) {
-      if (leftTime > this.attackTimer.active) {
-        this.attackTimer.active = 0;
-        this.consumeAction(leftTime - this.attackTimer.active);
-      } else {
-        this.attackTimer.active = this.attackTimer.active - leftTime;
-      }
-      return;
+  private updateSwingingState() {
+    this.updateIdleState();
+    const totalDuration =
+      this.attackDuration.pre +
+      this.attackDuration.active +
+      this.attackDuration.recovery;
+    if (this.actionTimer > totalDuration) {
+      this.currentState = "idle";
     }
+  }
 
-    if (this.attackTimer.recovery > 0) {
-      if (leftTime > this.attackTimer.recovery) {
-        this.attackTimer.recovery = 0;
-        this.consumeAction(leftTime - this.attackTimer.recovery);
-      } else {
-        this.attackTimer.recovery = this.attackTimer.recovery - leftTime;
-      }
-      return;
+  private updateThrowingState() {
+    const throwDuration = 0.5;
+    const halfThrow = throwDuration / 2;
+    if (this.actionTimer < halfThrow) {
+      const progress = this.actionTimer / halfThrow;
+      this.x = this.throwStartX + this.throwDirection.x * 200 * progress;
+      this.y = this.throwStartY + this.throwDirection.y * 200 * progress;
+    } else {
+      const progress = (this.actionTimer - halfThrow) / halfThrow;
+      this.x = this.throwStartX + this.throwDirection.x * 200 * (1 - progress);
+      this.y = this.throwStartY + this.throwDirection.y * 200 * (1 - progress);
+    }
+    this.z = this.owner.z;
+    if (this.actionTimer > throwDuration) {
+      this.currentState = "idle";
     }
   }
 
   public startAttack() {
-    if (!this.isAttacking) {
-      this.isAttacking = true;
-      this.actionStatus = {
-        pre: true,
-        active: false,
-        recovery: false,
-      };
-      this.attackTimer = { ...this.attackDuration };
+    if (this.currentState === "idle") {
+      this.currentState = "swinging";
+      this.actionTimer = 0;
+    }
+  }
+  public throwAttack() {
+    if (this.currentState === "idle") {
+      this.currentState = "throwing";
+      this.actionTimer = 0;
+
+      this.throwStartX = this.owner.x;
+      this.throwStartY = this.owner.y;
+
+      this.throwDirection.x = this.owner.lastMoveDirection.x;
+      this.throwDirection.y = this.owner.lastMoveDirection.y;
     }
   }
 
   public update(deltaTimeInSeconds: number) {
-    if (this.isAttacking) {
-      this.consumeAction(deltaTimeInSeconds);
-
-      this.actionStatus = {
-        pre: this.attackTimer.pre > 0,
-        active: this.attackTimer.active > 0 && this.attackTimer.pre <= 0,
-        recovery:
-          this.attackTimer.recovery > 0 &&
-          this.attackTimer.pre <= 0 &&
-          this.attackTimer.active <= 0,
-      };
-
-      if (
-        Object.values(this.attackTimer).reduce((p, c) => {
-          return Number(p) + Number(c);
-        }, 0) <= 0
-      ) {
-        this.isAttacking = false;
-        this.attackTimer = { ...this.attackDuration };
-      }
-    } else {
-      this.attackTimer = {
-        pre: 0,
-        active: 0,
-        recovery: 0,
-      };
-
-      this.actionStatus = {
-        pre: false,
-        active: false,
-        recovery: false,
-      };
-    }
-
-    const dirLength = Math.sqrt(
-      this.owner.lastMoveDirection.x ** 2 + this.owner.lastMoveDirection.y ** 2
-    );
-    const normalizedDirX =
-      dirLength > 0 ? this.owner.lastMoveDirection.x / dirLength : 1;
-    const normalizedDirY =
-      dirLength > 0 ? this.owner.lastMoveDirection.y / dirLength : 0;
-    this.x = this.owner.x + this.owner.width / 2 + normalizedDirX * 20;
-    this.y = this.owner.y + this.owner.height / 2 + normalizedDirY * 20;
-
-    if (this.actionStatus.pre) {
-      this.x += normalizedDirX * 0;
-      this.y += normalizedDirY * 0;
-    }
-
-    if (this.actionStatus.active) {
-      this.x += normalizedDirX * 20;
-      this.y += normalizedDirY * 20;
-    }
-
-    if (this.actionStatus.recovery) {
-      this.x += normalizedDirX * 20;
-      this.y += normalizedDirY * 20;
+    this.actionTimer += deltaTimeInSeconds;
+    switch (this.currentState) {
+      case "idle":
+        this.updateIdleState();
+        break;
+      case "swinging":
+        this.updateSwingingState();
+        break;
+      case "throwing":
+        this.updateThrowingState();
+        break;
     }
   }
 
-  public draw(context: CanvasRenderingContext2D) {
-    context.fillStyle = "silver";
-    // 这里的绘制逻辑可以更复杂，比如根据方向旋转剑
-    context.fillRect(
-      this.x - this.width / 2,
-      this.y - this.height / 2,
-      this.width,
-      this.height
+  public checkStatus(): {
+    pre: boolean;
+    active: boolean;
+    recovery: boolean;
+  } {
+    if (this.currentState !== "swinging") {
+      return { pre: false, active: false, recovery: false };
+    }
+    const preTime = this.attackDuration.pre;
+    const activeTime = preTime + this.attackDuration.active;
+    const recoveryTime = activeTime + this.attackDuration.recovery;
+    const timeLine = [preTime, activeTime, recoveryTime, this.actionTimer].sort(
+      (a, b) => a - b
     );
+    const currentIndex = timeLine.findIndex((t) => t === this.actionTimer);
+    return {
+      pre: currentIndex < 1,
+      active: currentIndex >= 1 && currentIndex < 2,
+      recovery: currentIndex >= 2 && currentIndex < 3,
+    };
+  }
+
+  public draw(context: CanvasRenderingContext2D) {
+    let angle = Math.atan2(
+      this.owner.lastMoveDirection.y,
+      this.owner.lastMoveDirection.x
+    );
+
+    const preTime = this.attackDuration.pre;
+    const activeTime = preTime + this.attackDuration.active;
+    const recoveryTime = activeTime + this.attackDuration.recovery;
+
+    if (this.currentState === "swinging") {
+      if (this.actionTimer < preTime) {
+        const preProcess = this.actionTimer / this.attackDuration.pre;
+        angle -= (Math.PI / 180) * 60 * preProcess;
+      } else if (this.actionTimer < activeTime) {
+        const activeProcess =
+          (this.actionTimer - preTime) / this.attackDuration.active;
+        angle -= (Math.PI / 180) * 60;
+        angle += (Math.PI / 180) * (60 * 2) * activeProcess;
+      } else if (this.actionTimer < recoveryTime) {
+        const recoveryProgress =
+          (this.actionTimer - activeTime) / this.attackDuration.recovery;
+        angle += (Math.PI / 180) * 60;
+        angle -= (Math.PI / 180) * 60 * recoveryProgress;
+      }
+    }
+    if (this.currentState === "throwing") {
+      angle += this.actionTimer * 20;
+    }
+
+    context.save();
+    context.translate(this.x, this.y - this.z);
+    context.rotate(angle);
+    context.fillStyle = "silver";
+    context.fillRect(0, -this.height / 2, this.width, this.height);
+    context.restore();
+  }
+
+  private normalized(x: number, y: number): { x: number; y: number } {
+    const length = Math.sqrt(x ** 2 + y ** 2);
+    if (length > 0) {
+      // 归一化
+      const normalizedX = x / length;
+      const normalizedY = y / length;
+      return {
+        x: normalizedX,
+        y: normalizedY,
+      };
+    }
+    return {
+      x,
+      y,
+    };
   }
 }
 export default Weapon;

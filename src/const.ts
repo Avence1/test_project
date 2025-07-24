@@ -9,3 +9,5 @@ export const SWORD_HEIGHT = 5;
 export const ATTACK_DURATION = 0.15;
 export const ATTACK_PRE_DELAY = 0.05;
 export const ATTACK_RECOVERY_DELAY = 0.05;
+
+export const GRAVITY = 980;

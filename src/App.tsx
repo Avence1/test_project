@@ -12,10 +12,10 @@ import { Player, Enemy } from "./class";
 import { checkCollision } from "./utils";
 
 const KEY_MAP = {
-  w: "up",
-  s: "down",
-  a: "left",
-  d: "right",
+  KeyW: "up",
+  KeyS: "down",
+  KeyA: "left",
+  KeyD: "right",
 };
 
 const App: React.FC = () => {
@@ -79,16 +79,22 @@ const App: React.FC = () => {
       animationFrameId = requestAnimationFrame(loopFun);
     };
     const keyDownHandle = (e: KeyboardEvent) => {
-      const key = KEY_MAP[e.key as keyof typeof KEY_MAP];
+      const key = KEY_MAP[e.code as keyof typeof KEY_MAP];
       if (key) {
         keysPressed[key] = true;
       }
-      if (e.key === "j") {
+      if (e.code === "KeyJ") {
         player.attack();
+      }
+      if (e.code === "KeyL") {
+        player.throwAttack();
+      }
+      if (e.code === "KeyK") {
+        player.jump();
       }
     };
     const keyUpHandle = (e: KeyboardEvent) => {
-      const key = KEY_MAP[e.key as keyof typeof KEY_MAP];
+      const key = KEY_MAP[e.code as keyof typeof KEY_MAP];
       if (key) {
         keysPressed[key] = false;
       }

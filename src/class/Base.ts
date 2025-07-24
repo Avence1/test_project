@@ -4,13 +4,18 @@ import {
   SPEED,
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
+  GRAVITY,
 } from "../const";
 
 export default class Base {
   public x: number;
   public y: number;
+  public z: number;
+  public vz: number;
   public width: number;
   public height: number;
+
+  protected onGround: boolean;
   protected speed: number;
   protected color: string;
   protected timeRate: number;
@@ -32,12 +37,27 @@ export default class Base {
     this.speed = params?.speed ?? SPEED;
     this.color = params?.color ?? "white";
     this.timeRate = params?.timeRate ?? 1;
+    this.z = 0;
+    this.vz = 0;
+    this.onGround = true;
   }
 
   public draw(context: CanvasRenderingContext2D): void {
     if (context) {
+      context.fillStyle = "rgba(0, 0, 0, 0.3)";
+      context.beginPath();
+      context.ellipse(
+        this.x + this.width / 2,
+        this.y + this.height,
+        this.width / 2,
+        this.width / 4,
+        0,
+        0,
+        2 * Math.PI
+      );
+      context.fill();
       context.fillStyle = this.color;
-      context.fillRect(this.x, this.y, this.width, this.height);
+      context.fillRect(this.x, this.y - this.z, this.width, this.height);
     }
   }
   public checkBoundary(
@@ -77,5 +97,24 @@ export default class Base {
       x,
       y,
     };
+  }
+  protected applyGravity(deltaTime: number) {
+    this.z += this.vz * deltaTime - 0.5 * GRAVITY * deltaTime ** 2;
+
+    if (!this.onGround) {
+      this.vz -= GRAVITY * deltaTime;
+    }
+    if (this.z <= 0) {
+      this.z = 0;
+      this.vz = 0;
+      this.onGround = true;
+      // if (Math.abs(this.vz) <= 120) {
+      //   this.vz = 0;
+      //   this.onGround = true;
+      // } else {
+      //   this.vz = -this.vz * 0.5;
+      //   this.onGround = false;
+      // }
+    }
   }
 }

@@ -17,6 +17,7 @@ export default class Enemy extends Base {
   }
 
   public update(deltaTimeInSeconds: number): void {
+    this.applyGravity(deltaTimeInSeconds);
     this.timeSinceLastDirectionChange += deltaTimeInSeconds;
 
     if (this.timeSinceLastDirectionChange > this.directionChangeInterval) {

@@ -6,13 +6,13 @@ class Player extends Base {
   public weapon: Weapon;
 
   constructor() {
-    super();
+    super({ position: { x: 10, y: 240 } });
     this.weapon = new Weapon({
       owner: this,
       attackDuration: {
-        pre: 0.15,
-        active: 0.3,
-        recovery: 0.1,
+        pre: 0.2,
+        active: 0.1,
+        recovery: 0.2,
       },
     });
   }
@@ -21,49 +21,43 @@ class Player extends Base {
     keysPressed: Record<string, boolean>,
     deltaTimeInSeconds: number
   ) {
-    let xSpeed = 0;
-    let ySpeed = 0;
+    this.applyGravity(deltaTimeInSeconds);
+
     let xInput = 0;
-    let yInput = 0;
 
     if (keysPressed.left) {
-      xSpeed -= this.speed;
       xInput -= 1;
     }
     if (keysPressed.right) {
-      xSpeed += this.speed;
       xInput += 1;
     }
-    if (keysPressed.up) {
-      ySpeed -= this.speed;
-      yInput -= 1;
-    }
-    if (keysPressed.down) {
-      ySpeed += this.speed;
-      yInput += 1;
-    }
 
-    if (xInput !== 0 || yInput !== 0) {
+    if (xInput !== 0) {
       this.lastMoveDirection.x = xInput;
-      this.lastMoveDirection.y = yInput;
     }
 
-    this.weapon.update(deltaTimeInSeconds);
-
-    const time = deltaTimeInSeconds * (this.timeRate ?? 1);
-
-    const normalized = this.normalized(xSpeed, ySpeed);
-    this.x += normalized.x * this.speed * time;
-    this.y += normalized.y * this.speed * time;
+    this.x += xInput * this.speed * deltaTimeInSeconds;
 
     const newPos = this.checkBoundary(this.x, this.y);
 
     this.x = newPos.x;
     this.y = newPos.y;
+    this.weapon.update(deltaTimeInSeconds);
   }
 
   public attack() {
     this.weapon.startAttack();
+  }
+
+  public throwAttack() {
+    this.weapon.throwAttack();
+  }
+
+  public jump() {
+    if (this.onGround) {
+      this.onGround = false;
+      this.vz = 600;
+    }
   }
 
   public draw(context: CanvasRenderingContext2D) {
